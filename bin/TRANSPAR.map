@@ -1,0 +1,67 @@
+Segment  Base   Top    High   Length
+-------- ------ ------ ------ -------
+icon     D1A882 D1A882             0h
+launcher D1A882 D1A8DA            58h
+libs     D1A8DA D1A933            59h
+startup  D1A933 D1A972            3Fh
+cleanup  D1A972 D1A986            14h
+exit     D1A986 D1A98C             6h
+code     D1A98C D1AEF5           569h
+data     D1AEF5 D20B89          5C94h
+strsect  D20B89 D20B89             0h
+text     D20B89 D20B89             0h
+bss      D031F6 D031FC D13FD6      6h
+header   D1A87F D1A882             3h
+
+Label                       Value
+-------------------------   ------
+_os_DisableHomeTextBuffer = D1A98C
+_os_EnableHomeTextBuffer  = D1A99E
+__idivs                   = 00013C
+__setflag                 = 000218
+__ishrs_b                 = 00017C
+__ishrs_b                 = 000180
+__icmpzero                = 000138
+__ior                     = 000168
+__sshl_b                  = 000240
+__sshl_b                  = 000244
+__sshru_b                 = 000250
+__sshru_b                 = 000254
+__sor                     = 000234
+__imuls                   = 000154
+__s_sbrk                  = D1A9B0
+__stoiu                   = 000264
+__irems                   = 00016C
+__frameset                = D1A9D0
+_malloc                   = D1AA0F
+__alloc_base              = D031F6
+__findlibload             = D1A882
+__ccleanup                = D1A972
+_errno                    = D008DC
+_init                     = D1A882
+_exit                     = D1A988
+__exit                    = D1A961
+__exitsp                  = D1A961
+__errsp                   = D1A961
+_alpha_mask_sprite        = D1AC2F
+_set_alpha_color          = D1AAB7
+_circle_data              = D1AF1A
+_glass_data               = D1B945
+_hexplore_data            = D1E057
+_images_pal               = D20A89
+_main                     = D1AD54
+_gfx_Begin                = D1A8ED
+_gfx_End                  = D1A8F1
+_gfx_SetColor             = D1A8F5
+_gfx_SetPalette           = D1A8F9
+_gfx_FillScreen           = D1A8FD
+_gfx_SetPixel             = D1A901
+_gfx_GetPixel             = D1A905
+_gfx_SetDraw              = D1A909
+_gfx_Blit                 = D1A90D
+_gfx_AllocSprite          = D1A911
+_gfx_TransparentSprite    = D1A915
+_gfx_ScaledSprite_NoClip  = D1A919
+_gfx_SetTransparentColor  = D1A91D
+_gfx_ScaleSprite          = D1A921
+_kb_Scan                  = D1A92F

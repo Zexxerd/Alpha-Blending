@@ -1,0 +1,1373 @@
+; Zilog eZ80 ANSI C Compiler Release 3.4
+; -optsize -noreduceopt -nomodsect -peephole -globalopt
+; -localcse -const=ROM 
+	FILE	"SRC\TRANSPARENCY.C"
+	.assume ADL=1
+	SEGMENT BSS
+_str:
+	DS	100
+;    1	// Note: Divide the functions into transparent and non-transparent functions.
+;    2	//and make macros that use the gfx_palette as palette values
+;    3	/* Keep these headers */
+;    4	#include <tice.h>
+;    5	
+;    6	/* Standard headers - it's recommended to leave them included */
+;    7	#include <math.h>
+;    8	#include <stdio.h>
+;    9	#include <stdlib.h>
+;   10	#include <string.h>
+;   11	
+;   12	#include <limits.h>
+;   13	
+;   14	#include <graphx.h>
+;   15	
+;   16	#include "transparency.h"
+;   17	char str[100];
+	SEGMENT CODE
+;   18	
+;   19	int abs(int x) {
+_abs:
+	LD	HL,-3
+	CALL	__frameset
+;   20	    int mask = x >> (sizeof(int) * CHAR_BIT - 1);
+	LD	HL,(IX+6)
+	LD	A,23
+	CALL	__ishrs_b
+	LD	BC,HL
+	LD	(IX+-3),BC
+;   21	    return ((x + mask) ^ mask);
+	LD	DE,(IX+-3)
+	LD	HL,(IX+6)
+	ADD	HL,DE
+	CALL	__ixor
+;   22	}
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _abs ***************************
+;Name                         Addr/Register   Size   Type
+;mask                                  IX-3      3   variable
+;x                                     IX+6      3   parameter
+
+
+; Stack Frame Size: 12 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+;   23	int search(int *array,size_t size,int value) {
+_search:
+	LD	HL,-3
+	CALL	__frameset
+;   24	    /*Returns position of item in array. Returns -1 on failure*/
+;   25	    int counter;
+;   26	    for (counter = 0;counter < size;counter++) {
+	LD	BC,0
+	LD	(IX+-3),BC
+	JR	L_5
+L_3:
+;   27	        if (array[counter] == value) {
+	LD	HL,(IX+-3)
+	LD	BC,HL
+	ADD	HL,HL
+	ADD	HL,BC
+	LD	BC,(IX+6)
+	ADD	HL,BC
+	LD	HL,(HL)
+	OR	A,A
+	LD	BC,(IX+12)
+	SBC	HL,BC
+	JR	NZ,L_4
+;   28	            return counter;
+	LD	HL,(IX+-3)
+	JR	L_7
+;   29	        }
+;   30	    }
+L_4:
+	LD	BC,(IX+-3)
+	INC	BC
+	LD	(IX+-3),BC
+L_5:
+	LD	BC,(IX+9)
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_3
+;   31	    return -1;
+	LD	HL,16777215
+;   32	}
+L_7:
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _search ***************************
+;Name                         Addr/Register   Size   Type
+;counter                               IX-3      3   variable
+;value                                IX+12      3   parameter
+;size                                  IX+9      3   parameter
+;array                                 IX+6      3   parameter
+
+
+; Stack Frame Size: 18 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+;   33	
+;   34	void TranslucentSprite(gfx_sprite_t* sprite,int x,int y,uint8_t method,int divisor,uint16_t* pal,unsigned int palsize,int transparent_index) {
+_TranslucentSprite:
+	LD	HL,-23
+	CALL	__frameset
+;   35	    /*Make a translucent sprite appear on the screen by combining pixel colors.
+;   36	     The way this is done is by accessing the raw values in the palette instead of just the indexes.
+;   37	     Arguments:
+;   38	     gfx_sprite_t * sprite: input sprite
+;   39	     int x : X position
+;   40	     int y : Y position
+;   41	     uint8_t method: Transparency method used.
+;   42	     int divisor: If using a dividing method, this is the divisor. (might change this to a float later)
+;   43	     uint16_t * pal: Pointer to palette
+;   44	     int palsize: size of palette (256 (512 bytes), normally)
+;   45	     int transparent_index: set to -1 if there is no transparent index.
+;   46	                          This index is to be ignored in cases of sprites with transparent pixels.
+;   47	     Transparency methods:
+;   48	         Method 1: Add colors
+;   49	         Method 2: Add colors, then divide (can be used for averaging)
+;   50	         Method 3: Subtract colors
+;   51	         Method 4: Subtract colors, then divide
+;   52	     */
+;   53	    gfx_sprite_t * temp; //temporary sprite
+;   54	    int i,j, curpixel; //current pixel
+;   55	    uint16_t holder;
+;   56	    //uint16_t lower,higher; //in case the color values don't match
+;   57	    uint16_t *paldiff; // find the closest palette entry
+;   58	    /*Allocate data for the sprite*/
+;   59	    temp = gfx_MallocSprite(sprite->width,sprite->height);
+	LD	BC,_malloc
+	PUSH	BC
+	LD	IY,(IX+6)
+	LD	C,(IY+1)
+	LD	B,0
+	PUSH	BC
+	LD	C,(IY+0)
+	PUSH	BC
+	CALL	_gfx_AllocSprite
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	(IX+-9),HL
+;   60	    temp->width = sprite->width;
+	LD	IY,(IX+6)
+	LD	A,(IY+0)
+	LD	IY,(IX+-9)
+	LD	(IY+0),A
+;   61	    temp->height = sprite->height;
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	LD	IY,(IX+-9)
+;   62	    /*The sprite is filled with the appropriate color values*/
+;   63	    gfx_SetDrawBuffer();
+	LD	BC,1
+	PUSH	BC
+	LD	(IY+1),A
+	CALL	_gfx_SetDraw
+	POP	BC
+;   64	    for (i = 0;i<(temp->width*temp->height);i++) {
+	LD	BC,0
+	LD	(IX+-6),BC
+	JR	L_44
+L_42:
+;   65	        /*Debug*/
+;   66	        sprintf(str,"(%d/%d)",i,temp->width*temp->height);
+	LD	BC,(IX+-17)
+	PUSH	BC
+	LD	BC,(IX+-6)
+	PUSH	BC
+	LD	BC,L__4
+	PUSH	BC
+	LD	BC,_str
+	PUSH	BC
+	CALL	_sprintf
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;   67	        gfx_PrintStringXY(str,0,0);
+	LD	BC,0
+	PUSH	BC
+	PUSH	BC
+	LD	BC,_str
+	PUSH	BC
+	CALL	_gfx_PrintStringXY
+	POP	BC
+	POP	BC
+	POP	BC
+;   68	        gfx_BlitBuffer();
+	LD	BC,1
+	PUSH	BC
+	CALL	_gfx_Blit
+	POP	BC
+;   69	        //get a pixel from the sprite as a 16-bit number
+;   70	        curpixel = pal[sprite->data[i]];
+	LD	IY,(IX+6)
+	LEA	HL,IY+2
+	LD	BC,(IX+-6)
+	ADD	HL,BC
+	LD	A,(HL)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;   71	        //Is the transparent index in range?
+;   72	        if ((transparent_index >= 0 && transparent_index <= (palsize - 1))) {
+	LD	HL,(IX+27)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	M,L_32
+	LD	IY,(IX+24)
+	LEA	HL,IY+-1
+	LD	BC,(IX+27)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_32
+;   73	            //Ignore the following if it's the transparent index
+;   74	            if (curpixel != pal[transparent_index]) {
+	LD	HL,(IX+27)
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	(IX+-20),HL
+	LD	BC,(HL)
+	CALL	__stoiu
+	OR	A,A
+	LD	BC,(IX+-3)
+	SBC	HL,BC
+	JR	Z,L_22
+;   75	                //add colors together
+;   76	                if (method == 1 || method == 2) {
+	LD	A,(IX+15)
+	CP	A,1
+	JR	Z,L_12
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_16
+L_12:
+;   77	                    curpixel += pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->height))];
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,(IX+-3)
+	ADD	HL,BC
+	LD	(IX+-3),HL
+;   78	                    //divide, if specified
+;   79	                    if (method == 2) {
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_16
+;   80	                        curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;   81	                    }
+;   82	                }
+L_16:
+;   83	                if (method == 3 || method == 4) {
+	LD	A,(IX+15)
+	CP	A,3
+	JR	Z,L_15
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_18
+L_15:
+;   84	                    //subtract colors
+;   85	                    curpixel -= pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->width))];
+	LD	IY,(IX+6)
+	LD	D,(IY+0)
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	(IX+-3),HL
+;   86	                    //divide, if specified
+;   87	                    if (method == 4) {
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_18
+;   88	                        curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;   89	                    }
+;   90	                }
+L_18:
+;   91	                //force colors to fit in 16-bit range.
+;   92	                if (curpixel < 0) curpixel = 0;
+	LD	HL,(IX+-3)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	P,L_20
+	LD	BC,0
+	LD	(IX+-3),BC
+L_20:
+;   93	                if (curpixel > 0xFFFF)  curpixel = 0xFFFF;
+	LD	BC,(IX+-3)
+	LD	HL,65535
+	OR	A,A
+	SBC	HL,BC
+	CALL	__setflag
+	JP	P,L_40
+	LD	BC,65535
+	LD	(IX+-3),BC
+;   94	            } else {
+	JR	L_40
+L_22:
+;   95	                curpixel = pal[transparent_index]; //actually does nothing.
+	LD	HL,(IX+-20)
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;   96	            }
+;   97	        } else {
+	JR	L_40
+L_32:
+;   98	            /*Rehash of the above, except without checking transparent indexes*/
+;   99	            if (method == 1 || method == 2) {
+	LD	A,(IX+15)
+	CP	A,1
+	JR	Z,L_25
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_29
+L_25:
+;  100	                curpixel += pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->height))];
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,(IX+-3)
+	ADD	HL,BC
+	LD	(IX+-3),HL
+;  101	                if (method == 2) {
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_29
+;  102	                    curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  103	                }
+;  104	            }
+L_29:
+;  105	            if (method == 3 || method == 4) {
+	LD	A,(IX+15)
+	CP	A,3
+	JR	Z,L_28
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_30
+L_28:
+;  106	                curpixel -= pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->width))];
+	LD	IY,(IX+6)
+	LD	D,(IY+0)
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	(IX+-3),HL
+;  107	                if (method == 4) {
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_30
+;  108	                    curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  109	                }
+;  110	            }
+L_30:
+;  111	            curpixel &= 0xFFFF;
+	LD	BC,(IX+-3)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  112	            /*if (curpixel < 0) curpixel = 0;
+;  113	            if (curpixel > 0xFFFF)  curpixel = 0xFFFF;*/
+;  114	        }
+L_40:
+;  115	        //Find index of the 16-bit color
+;  116	        if (search((int *)pal,palsize,curpixel) == -1) {
+	LD	BC,(IX+-3)
+	PUSH	BC
+	LD	BC,(IX+24)
+	PUSH	BC
+	LD	BC,(IX+21)
+	PUSH	BC
+	CALL	_search
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	BC,16777215
+	OR	A,A
+	SBC	HL,BC
+	JR	NZ,L_41
+;  117	            //paldiff = (uint16_t *) malloc(palsize * sizeof(uint16_t));
+;  118	            //color not found, finding an approximate value.
+;  119	            holder = curpixel;
+	LD	HL,(IX+-3)
+	LD	(IX+-14),L
+	LD	(IX+-13),H
+;  120	            for (j = 0;j < palsize;j++) {
+	LD	BC,0
+	LD	(IX+-12),BC
+	JR	L_37
+L_35:
+;  121	                if (curpixel - holder > abs(curpixel - pal[j])) holder = pal[j];
+	LD	HL,(IX+-12)
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	(IX+-23),HL
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	PUSH	HL
+	CALL	_abs
+	POP	BC
+	LD	BC,(IX+-14)
+	LD	DE,HL
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	BC,HL
+	LD	HL,DE
+	OR	A,A
+	SBC	HL,BC
+	CALL	__setflag
+	JP	P,L_36
+	LD	HL,(IX+-23)
+	LD	BC,(HL)
+	LD	(IX+-14),C
+	LD	(IX+-13),B
+;  122	            }
+L_36:
+	LD	BC,(IX+-12)
+	INC	BC
+	LD	(IX+-12),BC
+L_37:
+	LD	BC,(IX+24)
+	LD	HL,(IX+-12)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_35
+;  123	            curpixel = holder;
+	LD	BC,(IX+-14)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  124	        }
+L_41:
+;  125	        temp->data[i] = search((int *)pal,palsize,curpixel);
+	LD	BC,(IX+-3)
+	PUSH	BC
+	LD	BC,(IX+24)
+	PUSH	BC
+	LD	BC,(IX+21)
+	PUSH	BC
+	CALL	_search
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	IY,(IX+-9)
+	LD	A,L
+	LEA	HL,IY+2
+	LD	BC,(IX+-6)
+	ADD	HL,BC
+	LD	(HL),A
+	LD	BC,(IX+-6)
+	INC	BC
+	LD	(IX+-6),BC
+;  126	        //if (temp->data[i] == -1) exit(1);
+;  127	    }
+L_44:
+	LD	IY,(IX+-9)
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	A,(IY+1)
+	LD	DE,HL
+	UEXT	HL
+	OR	A,A
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__imuls
+	LD	(IX+-17),HL
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	SBC	HL,BC
+	CALL	__setflag
+	JP	M,L_42
+;  128	    // If sprite has a transparent index show it as a transparent sprite.
+;  129	    if (transparent_index >= 0 && transparent_index <= (palsize - 1)) {
+	LD	HL,(IX+27)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	M,L_47
+	LD	IY,(IX+24)
+	LEA	HL,IY+-1
+	LD	BC,(IX+27)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_47
+;  130	        gfx_TransparentSprite(temp,x,y);
+	LD	BC,(IX+12)
+	PUSH	BC
+	LD	BC,(IX+9)
+	PUSH	BC
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_gfx_TransparentSprite
+	POP	BC
+	POP	BC
+	POP	BC
+;  131	    } else {
+	JR	L_49
+L_47:
+;  132	        gfx_Sprite(temp,x,y);
+	LD	BC,(IX+12)
+	PUSH	BC
+	LD	BC,(IX+9)
+	PUSH	BC
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_gfx_Sprite
+	POP	BC
+	POP	BC
+	POP	BC
+;  133	    }
+L_49:
+;  134	    free(temp);
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_free
+	POP	BC
+;  135	}
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _TranslucentSprite ***************************
+;Name                         Addr/Register   Size   Type
+;_free                               IMPORT  -----   function
+;_gfx_Sprite                         IMPORT  -----   function
+;_gfx_TransparentSprite              IMPORT  -----   function
+;_abs                                IMPORT  -----   function
+;_search                             IMPORT  -----   function
+;_gfx_GetPixel                       IMPORT  -----   function
+;_gfx_Blit                           IMPORT  -----   function
+;_gfx_PrintStringXY                  IMPORT  -----   function
+;_str                                STATIC    100   variable
+;_sprintf                            IMPORT  -----   function
+;_gfx_SetDraw                        IMPORT  -----   function
+;_malloc                             IMPORT  -----   function
+;_gfx_AllocSprite                    IMPORT  -----   function
+;G_2                                  IX-23      3   variable
+;G_1                                  IX-20      3   variable
+;G_0                                  IX-17      3   variable
+;holder                               IX-14      2   variable
+;j                                    IX-12      3   variable
+;temp                                  IX-9      3   variable
+;i                                     IX-6      3   variable
+;curpixel                              IX-3      3   variable
+;transparent_index                    IX+27      3   parameter
+;palsize                              IX+24      3   parameter
+;pal                                  IX+21      3   parameter
+;divisor                              IX+18      3   parameter
+;method                               IX+15      1   parameter
+;y                                    IX+12      3   parameter
+;x                                     IX+9      3   parameter
+;sprite                                IX+6      3   parameter
+
+
+; Stack Frame Size: 53 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+	SEGMENT STRSECT
+L__4:
+	DB	"(%d/%d)"
+	DB	0
+	SEGMENT CODE
+;  136	
+;  137	void TransparentTranslucentSprite(gfx_sprite_t* sprite,int x,int y,uint8_t method,int divisor,uint16_t* pal,unsigned int palsize,int transparent_index) {
+_TransparentTranslucentSprite:
+	LD	HL,-23
+	CALL	__frameset
+;  138	    /*Make a translucent sprite appear on the screen by combining pixel colors.
+;  139	     The way this is done is by accessing the raw values in the palette instead of just the indexes.
+;  140	     Arguments:
+;  141	     gfx_sprite_t * sprite: input sprite
+;  142	     int x : X position
+;  143	     int y : Y position
+;  144	     uint8_t method: Transparency method used.
+;  145	     int divisor: If using a dividing method, this is the divisor. (might change this to a float later)
+;  146	     uint16_t * pal: Pointer to palette
+;  147	     int palsize: size of palette (256 (512 bytes), normally)
+;  148	     int transparent_index: set to -1 if there is no transparent index.
+;  149	     This index is to be ignored in cases of sprites with transparent pixels.
+;  150	     Transparency methods:
+;  151	     Method 1: Add colors
+;  152	     Method 2: Add colors, then divide (can be used for averaging)
+;  153	     Method 3: Subtract colors
+;  154	     Method 4: Subtract colors, then divide
+;  155	     */
+;  156	    gfx_sprite_t * temp; //temporary sprite
+;  157	    int i,j, curpixel; //current pixel
+;  158	    uint16_t holder;
+;  159	    //uint16_t lower,higher; //in case the color values don't match
+;  160	    uint16_t *paldiff; // find the closest palette entry
+;  161	    /*Allocate data for the sprite*/
+;  162	    temp = gfx_MallocSprite(sprite->width,sprite->height);
+	LD	BC,_malloc
+	PUSH	BC
+	LD	IY,(IX+6)
+	LD	C,(IY+1)
+	LD	B,0
+	PUSH	BC
+	LD	C,(IY+0)
+	PUSH	BC
+	CALL	_gfx_AllocSprite
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	(IX+-9),HL
+;  163	    temp->width = sprite->width;
+	LD	IY,(IX+6)
+	LD	A,(IY+0)
+	LD	IY,(IX+-9)
+	LD	(IY+0),A
+;  164	    temp->height = sprite->height;
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	LD	IY,(IX+-9)
+;  165	    /*The sprite is filled with the appropriate color values*/
+;  166	    gfx_SetDrawBuffer();
+	LD	BC,1
+	PUSH	BC
+	LD	(IY+1),A
+	CALL	_gfx_SetDraw
+	POP	BC
+;  167	    for (i = 0;i<(temp->width*temp->height);i++) {
+	LD	BC,0
+	LD	(IX+-6),BC
+	JR	L_87
+L_85:
+;  168	        /*Debug*/
+;  169	        sprintf(str,"(%d/%d)",i,temp->width*temp->height);
+	LD	BC,(IX+-17)
+	PUSH	BC
+	LD	BC,(IX+-6)
+	PUSH	BC
+	LD	BC,L__29
+	PUSH	BC
+	LD	BC,_str
+	PUSH	BC
+	CALL	_sprintf
+	POP	BC
+	POP	BC
+	POP	BC
+	POP	BC
+;  170	        gfx_PrintStringXY(str,0,0);
+	LD	BC,0
+	PUSH	BC
+	PUSH	BC
+	LD	BC,_str
+	PUSH	BC
+	CALL	_gfx_PrintStringXY
+	POP	BC
+	POP	BC
+	POP	BC
+;  171	        gfx_BlitBuffer();
+	LD	BC,1
+	PUSH	BC
+	CALL	_gfx_Blit
+	POP	BC
+;  172	        //get a pixel from the sprite as a 16-bit number
+;  173	        curpixel = pal[sprite->data[i]];
+	LD	IY,(IX+6)
+	LEA	HL,IY+2
+	LD	BC,(IX+-6)
+	ADD	HL,BC
+	LD	A,(HL)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  174	        //Is the transparent index in range?
+;  175	        if ((transparent_index >= 0 && transparent_index <= (palsize - 1))) {
+	LD	HL,(IX+27)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	M,L_75
+	LD	IY,(IX+24)
+	LEA	HL,IY+-1
+	LD	BC,(IX+27)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_75
+;  176	            //Ignore the following if it's the transparent index
+;  177	            if (curpixel != pal[transparent_index]) {
+	LD	HL,(IX+27)
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	(IX+-20),HL
+	LD	BC,(HL)
+	CALL	__stoiu
+	OR	A,A
+	LD	BC,(IX+-3)
+	SBC	HL,BC
+	JR	Z,L_65
+;  178	                //add colors together
+;  179	                if (method == 1 || method == 2) {
+	LD	A,(IX+15)
+	CP	A,1
+	JR	Z,L_55
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_59
+L_55:
+;  180	                    curpixel += pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->height))];
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,(IX+-3)
+	ADD	HL,BC
+	LD	(IX+-3),HL
+;  181	                    //divide, if specified
+;  182	                    if (method == 2) {
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_59
+;  183	                        curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  184	                    }
+;  185	                }
+L_59:
+;  186	                if (method == 3 || method == 4) {
+	LD	A,(IX+15)
+	CP	A,3
+	JR	Z,L_58
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_61
+L_58:
+;  187	                    //subtract colors
+;  188	                    curpixel -= pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->width))];
+	LD	IY,(IX+6)
+	LD	D,(IY+0)
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	(IX+-3),HL
+;  189	                    //divide, if specified
+;  190	                    if (method == 4) {
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_61
+;  191	                        curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  192	                    }
+;  193	                }
+L_61:
+;  194	                //force colors to fit in 16-bit range.
+;  195	                if (curpixel < 0) curpixel = 0;
+	LD	HL,(IX+-3)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	P,L_63
+	LD	BC,0
+	LD	(IX+-3),BC
+L_63:
+;  196	                if (curpixel > 0xFFFF)  curpixel = 0xFFFF;
+	LD	BC,(IX+-3)
+	LD	HL,65535
+	OR	A,A
+	SBC	HL,BC
+	CALL	__setflag
+	JP	P,L_83
+	LD	BC,65535
+	LD	(IX+-3),BC
+;  197	            } else {
+	JR	L_83
+L_65:
+;  198	                curpixel = pal[transparent_index]; //actually does nothing.
+	LD	HL,(IX+-20)
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  199	            }
+;  200	        } else {
+	JR	L_83
+L_75:
+;  201	            /*Rehash of the above, except without checking transparent indexes*/
+;  202	            if (method == 1 || method == 2) {
+	LD	A,(IX+15)
+	CP	A,1
+	JR	Z,L_68
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_72
+L_68:
+;  203	                curpixel += pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->height))];
+	LD	IY,(IX+6)
+	LD	A,(IY+1)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,(IX+-3)
+	ADD	HL,BC
+	LD	(IX+-3),HL
+;  204	                if (method == 2) {
+	LD	A,(IX+15)
+	CP	A,2
+	JR	NZ,L_72
+;  205	                    curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  206	                }
+;  207	            }
+L_72:
+;  208	            if (method == 3 || method == 4) {
+	LD	A,(IX+15)
+	CP	A,3
+	JR	Z,L_71
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_73
+L_71:
+;  209	                curpixel -= pal[gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->width))];
+	LD	IY,(IX+6)
+	LD	D,(IY+0)
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	A,D
+	UEXT	HL
+	LD	L,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	(IX+-3),HL
+;  210	                if (method == 4) {
+	LD	A,(IX+15)
+	CP	A,4
+	JR	NZ,L_73
+;  211	                    curpixel /= divisor;
+	LD	HL,(IX+-3)
+	LD	BC,(IX+18)
+	CALL	__idivs
+	LD	(IX+-3),HL
+;  212	                }
+;  213	            }
+L_73:
+;  214	            curpixel &= 0xFFFF;
+	LD	BC,(IX+-3)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  215	            /*if (curpixel < 0) curpixel = 0;
+;  216	             if (curpixel > 0xFFFF)  curpixel = 0xFFFF;*/
+;  217	        }
+L_83:
+;  218	        //Find index of the 16-bit color
+;  219	        if (search((int *)pal,palsize,curpixel) == -1) {
+	LD	BC,(IX+-3)
+	PUSH	BC
+	LD	BC,(IX+24)
+	PUSH	BC
+	LD	BC,(IX+21)
+	PUSH	BC
+	CALL	_search
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	BC,16777215
+	OR	A,A
+	SBC	HL,BC
+	JR	NZ,L_84
+;  220	            //paldiff = (uint16_t *) malloc(palsize * sizeof(uint16_t));
+;  221	            //color not found, finding an approximate value.
+;  222	            holder = curpixel;
+	LD	HL,(IX+-3)
+	LD	(IX+-14),L
+	LD	(IX+-13),H
+;  223	            for (j = 0;j < palsize;j++) {
+	LD	BC,0
+	LD	(IX+-12),BC
+	JR	L_80
+L_78:
+;  224	                if (curpixel - holder > abs(curpixel - pal[j])) holder = pal[j];
+	LD	HL,(IX+-12)
+	ADD	HL,HL
+	LD	BC,(IX+21)
+	ADD	HL,BC
+	LD	(IX+-23),HL
+	LD	BC,(HL)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	PUSH	HL
+	CALL	_abs
+	POP	BC
+	LD	BC,(IX+-14)
+	LD	DE,HL
+	CALL	__stoiu
+	LD	BC,HL
+	LD	HL,(IX+-3)
+	OR	A,A
+	SBC	HL,BC
+	LD	BC,HL
+	LD	HL,DE
+	OR	A,A
+	SBC	HL,BC
+	CALL	__setflag
+	JP	P,L_79
+	LD	HL,(IX+-23)
+	LD	BC,(HL)
+	LD	(IX+-14),C
+	LD	(IX+-13),B
+;  225	            }
+L_79:
+	LD	BC,(IX+-12)
+	INC	BC
+	LD	(IX+-12),BC
+L_80:
+	LD	BC,(IX+24)
+	LD	HL,(IX+-12)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_78
+;  226	            curpixel = holder;
+	LD	BC,(IX+-14)
+	CALL	__stoiu
+	LD	(IX+-3),HL
+;  227	        }
+L_84:
+;  228	        temp->data[i] = search((int *)pal,palsize,curpixel);
+	LD	BC,(IX+-3)
+	PUSH	BC
+	LD	BC,(IX+24)
+	PUSH	BC
+	LD	BC,(IX+21)
+	PUSH	BC
+	CALL	_search
+	POP	BC
+	POP	BC
+	POP	BC
+	LD	IY,(IX+-9)
+	LD	A,L
+	LEA	HL,IY+2
+	LD	BC,(IX+-6)
+	ADD	HL,BC
+	LD	(HL),A
+	LD	BC,(IX+-6)
+	INC	BC
+	LD	(IX+-6),BC
+;  229	        //if (temp->data[i] == -1) exit(1);
+;  230	    }
+L_87:
+	LD	IY,(IX+-9)
+	LD	A,(IY+0)
+	UEXT	HL
+	LD	L,A
+	LD	A,(IY+1)
+	LD	DE,HL
+	UEXT	HL
+	OR	A,A
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__imuls
+	LD	(IX+-17),HL
+	LD	BC,HL
+	LD	HL,(IX+-6)
+	SBC	HL,BC
+	CALL	__setflag
+	JP	M,L_85
+;  231	    // If sprite has a transparent index show it as a transparent sprite.
+;  232	    if (transparent_index >= 0 && transparent_index <= (palsize - 1)) {
+	LD	HL,(IX+27)
+	CALL	__icmpzero
+	CALL	__setflag
+	JP	M,L_90
+	LD	IY,(IX+24)
+	LEA	HL,IY+-1
+	LD	BC,(IX+27)
+	OR	A,A
+	SBC	HL,BC
+	JR	C,L_90
+;  233	        gfx_TransparentSprite(temp,x,y);
+	LD	BC,(IX+12)
+	PUSH	BC
+	LD	BC,(IX+9)
+	PUSH	BC
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_gfx_TransparentSprite
+	POP	BC
+	POP	BC
+	POP	BC
+;  234	    } else {
+	JR	L_92
+L_90:
+;  235	        gfx_Sprite(temp,x,y);
+	LD	BC,(IX+12)
+	PUSH	BC
+	LD	BC,(IX+9)
+	PUSH	BC
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_gfx_Sprite
+	POP	BC
+	POP	BC
+	POP	BC
+;  236	    }
+L_92:
+;  237	    free(temp);
+	LD	BC,(IX+-9)
+	PUSH	BC
+	CALL	_free
+	POP	BC
+;  238	}
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _TransparentTranslucentSprite ***************************
+;Name                         Addr/Register   Size   Type
+;_free                               IMPORT  -----   function
+;_gfx_Sprite                         IMPORT  -----   function
+;_gfx_TransparentSprite              IMPORT  -----   function
+;_abs                                IMPORT  -----   function
+;_search                             IMPORT  -----   function
+;_gfx_GetPixel                       IMPORT  -----   function
+;_gfx_Blit                           IMPORT  -----   function
+;_gfx_PrintStringXY                  IMPORT  -----   function
+;_str                                STATIC    100   variable
+;_sprintf                            IMPORT  -----   function
+;_gfx_SetDraw                        IMPORT  -----   function
+;_malloc                             IMPORT  -----   function
+;_gfx_AllocSprite                    IMPORT  -----   function
+;G_5                                  IX-23      3   variable
+;G_4                                  IX-20      3   variable
+;G_3                                  IX-17      3   variable
+;holder                               IX-14      2   variable
+;j                                    IX-12      3   variable
+;temp                                  IX-9      3   variable
+;i                                     IX-6      3   variable
+;curpixel                              IX-3      3   variable
+;transparent_index                    IX+27      3   parameter
+;palsize                              IX+24      3   parameter
+;pal                                  IX+21      3   parameter
+;divisor                              IX+18      3   parameter
+;method                               IX+15      1   parameter
+;y                                    IX+12      3   parameter
+;x                                     IX+9      3   parameter
+;sprite                                IX+6      3   parameter
+
+
+; Stack Frame Size: 53 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+	SEGMENT STRSECT
+L__29:
+	DB	"(%d/%d)"
+	DB	0
+	XREF _gfx_TransparentSprite:ROM
+	XREF _gfx_Sprite:ROM
+	XREF _gfx_PrintStringXY:ROM
+	XREF _gfx_Blit:ROM
+	XREF _gfx_SetDraw:ROM
+	XREF _gfx_GetPixel:ROM
+	XREF _gfx_AllocSprite:ROM
+	XREF _sprintf:ROM
+	XREF _free:ROM
+	XREF _malloc:ROM
+	XREF __idivs:ROM
+	XREF __imuls:ROM
+	XREF __irems:ROM
+	XREF __ixor:ROM
+	XREF __stoiu:ROM
+	XREF __frameset:ROM
+	XREF __setflag:ROM
+	XREF __icmpzero:ROM
+	XREF __ishrs_b:ROM
+	XDEF _TransparentTranslucentSprite
+	XDEF _TranslucentSprite
+	XDEF _search
+	XDEF _abs
+	XDEF _str
+	END

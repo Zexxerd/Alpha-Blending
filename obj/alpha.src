@@ -1,0 +1,398 @@
+; Zilog eZ80 ANSI C Compiler Release 3.4
+; -optsize -noreduceopt -nomodsect -peephole -globalopt
+; -localcse -const=ROM 
+	FILE	"SRC\ALPHA.C"
+	.assume ADL=1
+	SEGMENT CODE
+;    1	// Note: Divide the functions into transparent and non-transparent functions.
+;    2	//and make macros that use the gfx_palette as palette values
+;    3	/* Keep these headers */
+;    4	#include <tice.h>
+;    5	
+;    6	/* Standard headers - it's recommended to leave them included */
+;    7	#include <math.h>
+;    8	#include <stdio.h>
+;    9	#include <stdlib.h>
+;   10	#include <string.h>
+;   11	
+;   12	#include <graphx.h>
+;   13	#include <debug.h>
+;   14	#include "alpha.h"
+;   15	
+;   16	//0b0111110000000000,0b0000001111100000,0b0000000000011111
+;   17	#define red_part(c) ((c & 31744) >> 10)
+;   18	#define green_part(c) (((c & 992) >> 4) | ((c & 1<<16) >> 16)) //puts the lsbit at the end for easy maths.
+;   19	#define blue_part(c) (c & 31)
+;   20	
+;   21	//uint16_t alpha_color;
+;   22	void set_alpha_color(uint16_t color) {
+_set_alpha_color:
+	LD	HL,-7
+	CALL	__frameset
+;   23	    //Assuming a palette of 128 colors with one transparent color, in rgb1555 format
+;   24	    //rgb 1555 is 1 bit green (lsbit), 5 bits red, 5 bits green (msbits), and 5 bits blue.
+;   25	    uint8_t r,g,b;
+;   26	    uint16_t temp_color;
+;   27	    uint8_t i;
+;   28	    for (i = 0;i<128;i++) {
+	LD	(IX+-1),0
+	JR	L_3
+L_1:
+;   29	        r =   red_part(gfx_palette[i]);
+	LD	A,(IX+-1)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,HL
+	LD	A,10
+	LD	BC,14877184
+	ADD	HL,BC
+	LD	(IX+-7),HL
+	LD	HL,(HL)
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,31
+	LD	(IX+-4),A
+;   30	        g = green_part(gfx_palette[i]);
+	LD	HL,(IX+-7)
+	LD	HL,(HL)
+	LD	A,4
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,62
+	LD	L,A
+	LD	D,L
+	LD	A,16
+	LD	HL,(IX+-7)
+	LD	HL,(HL)
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,0
+	LD	L,A
+	LD	A,D
+	OR	A,L
+	LD	(IX+-2),A
+;   31	        b =  blue_part(gfx_palette[i]);
+	LD	HL,(IX+-7)
+	LD	A,(HL)
+	AND	A,31
+	LD	C,A
+	LD	B,0
+	LD	HL,BC
+	LD	(IX+-3),L
+;   32	        r =     (r+red_part(color))>>1; // shifting is the same as dividing an int by a power of 2
+	LD	HL,(IX+6)
+	LD	A,10
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,31
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	A,(IX+-4)
+	UEXT	HL
+	LD	L,A
+	LD	A,1
+	ADD	HL,BC
+	CALL	__ishrs_b
+	LD	(IX+-4),L
+;   33	        g =   (g+green_part(color))>>1;
+	LD	HL,(IX+6)
+	LD	A,4
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,62
+	UEXT	HL
+	LD	L,A
+	LD	DE,HL
+	LD	HL,(IX+6)
+	LD	A,16
+	CALL	__sshru_b
+	LD	BC,HL
+	CALL	__stoiu
+	LD	A,L
+	AND	A,0
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__ior
+	LD	BC,HL
+	LD	A,(IX+-2)
+	UEXT	HL
+	LD	L,A
+	LD	A,1
+	ADD	HL,BC
+	CALL	__ishrs_b
+	LD	(IX+-2),L
+;   34	        b =    (b+blue_part(color))>>1;
+	LD	A,(IX+6)
+	AND	A,31
+	LD	C,A
+	LD	B,0
+	CALL	__stoiu
+	LD	BC,HL
+	LD	A,(IX+-3)
+	UEXT	HL
+	LD	L,A
+	ADD	HL,BC
+	LD	A,1
+	CALL	__ishrs_b
+	LD	(IX+-3),L
+;   35	        gfx_palette[i+128] = ((uint16_t)(g & 1) << 16) | ((uint16_t) r << 10) | ((uint16_t)(g>>1) << 5) | b;
+	LD	C,(IX+-2)
+	LD	B,0
+	LD	HL,BC
+	LD	A,L
+	AND	A,1
+	LD	C,A
+	LD	HL,BC
+	LD	C,(IX+-4)
+	LD	A,16
+	CALL	__sshl_b
+	LD	DE,HL
+	LD	HL,BC
+	LD	A,10
+	CALL	__sshl_b
+	LD	BC,HL
+	LD	HL,DE
+	LD	A,(IX+-2)
+	CALL	__sor
+	LD	DE,HL
+	UEXT	HL
+	LD	L,A
+	LD	A,1
+	CALL	__ishrs_b
+	ADD	HL,HL
+	LD	A,(IX+-1)
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__sor
+	LD	C,(IX+-3)
+	LD	B,0
+	CALL	__sor
+	LD	BC,HL
+	UEXT	HL
+	LD	L,A
+	LD	DE,128
+	ADD	HL,DE
+	ADD	HL,HL
+	LD	DE,14877184
+	ADD	HL,DE
+	LD	(HL),C
+	INC	HL
+	LD	(HL),B
+	INC	(IX+-1)
+;   36	    }
+L_3:
+	LD	A,(IX+-1)
+	CP	A,128
+	JR	C,L_1
+;   37	}
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _set_alpha_color ***************************
+;Name                         Addr/Register   Size   Type
+;r                                     IX-4      1   variable
+;b                                     IX-3      1   variable
+;g                                     IX-2      1   variable
+;i                                     IX-1      1   variable
+;color                                 IX+6      2   parameter
+
+
+; Stack Frame Size: 16 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+;   38	void alpha_mask_sprite(gfx_sprite_t * sprite,int x,int y) {
+_alpha_mask_sprite:
+	LD	HL,-8
+	CALL	__frameset
+;   39	    //not having a transparent index is the same as inputting a square as input.
+;   40	    uint16_t i;
+;   41	    uint8_t transparent_index = gfx_SetTransparentColor(0);
+	LD	BC,0
+	PUSH	BC
+	CALL	_gfx_SetTransparentColor
+	POP	BC
+	LD	(IX+-5),A
+;   42	    gfx_SetTransparentColor(transparent_index);
+	LD	C,(IX+-5)
+	LD	B,0
+	PUSH	BC
+	CALL	_gfx_SetTransparentColor
+	POP	BC
+;   43	    for (i = 0;i<(sprite->width*sprite->height);i++) {
+	LD	(IX+-2),0
+	LD	(IX+-1),0
+	JR	L_9
+L_7:
+;   44	        if (sprite->data[i] != transparent_index) {
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	LD	BC,HL
+	LD	IY,(IX+6)
+	LEA	HL,IY+2
+	ADD	HL,BC
+	LD	A,(HL)
+	CP	A,(IX+-5)
+	JR	Z,L_8
+;   45	            gfx_SetColor(gfx_GetPixel(x + (i % sprite->width),y + (i / sprite->height))+128);
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	LD	DE,HL
+	LD	A,(IX+-3)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	LD	DE,HL
+	LD	A,(IX+-4)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_GetPixel
+	POP	BC
+	POP	BC
+	ADD	A,128
+	LD	C,A
+	LD	B,0
+	PUSH	BC
+	CALL	_gfx_SetColor
+	POP	BC
+;   46	            gfx_SetPixel(x + (i % sprite->width),y + (i / sprite->width));
+	LD	IY,(IX+6)
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	LD	D,(IY+0)
+	LD	A,D
+	LD	(IX+-8),HL
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,(IX+-8)
+	CALL	__idivs
+	LD	A,L
+	LD	B,(IX+12)
+	ADD	A,B
+	LD	C,A
+	LD	A,D
+	LD	B,0
+	PUSH	BC
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	LD	DE,HL
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__irems
+	LD	BC,(IX+9)
+	ADD	HL,BC
+	PUSH	HL
+	CALL	_gfx_SetPixel
+	POP	BC
+	POP	BC
+;   47	        }
+;   48	    }
+L_8:
+	LD	HL,(IX+-2)
+	INC	HL
+	LD	(IX+-2),L
+	LD	(IX+-1),H
+L_9:
+	LD	IY,(IX+6)
+	LD	A,(IY+0)
+	LD	(IX+-4),A
+	LD	A,(IY+1)
+	LD	(IX+-3),A
+	LD	A,(IX+-4)
+	UEXT	HL
+	LD	L,A
+	LD	DE,HL
+	LD	A,(IX+-3)
+	UEXT	HL
+	LD	L,A
+	LD	BC,HL
+	LD	HL,DE
+	CALL	__imuls
+	LD	DE,HL
+	LD	BC,(IX+-2)
+	CALL	__stoiu
+	OR	A,A
+	SBC	HL,DE
+	CALL	__setflag
+	JP	M,L_7
+;   49	}
+	LD	SP,IX
+	POP	IX
+	RET	
+
+
+;**************************** _alpha_mask_sprite ***************************
+;Name                         Addr/Register   Size   Type
+;_gfx_SetPixel                       IMPORT  -----   function
+;_gfx_GetPixel                       IMPORT  -----   function
+;_gfx_SetColor                       IMPORT  -----   function
+;_gfx_SetTransparentColor            IMPORT  -----   function
+;transparent_index                     IX-5      1   variable
+;G_0                                   IX-4      1   variable
+;G_1                                   IX-3      1   variable
+;i                                     IX-2      2   variable
+;y                                    IX+12      3   parameter
+;x                                     IX+9      3   parameter
+;sprite                                IX+6      3   parameter
+
+
+; Stack Frame Size: 23 (bytes)
+;       Spill Code: 0 (instruction)
+
+
+	XREF _gfx_GetPixel:ROM
+	XREF _gfx_SetPixel:ROM
+	XREF _gfx_SetTransparentColor:ROM
+	XREF _gfx_SetColor:ROM
+	XREF __idivs:ROM
+	XREF __imuls:ROM
+	XREF __sor:ROM
+	XREF __ior:ROM
+	XREF __irems:ROM
+	XREF __stoiu:ROM
+	XREF __frameset:ROM
+	XREF __setflag:ROM
+	XREF __ishrs_b:ROM
+	XREF __sshl_b:ROM
+	XREF __sshru_b:ROM
+	XDEF _alpha_mask_sprite
+	XDEF _set_alpha_color
+	END
