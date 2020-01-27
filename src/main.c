@@ -20,26 +20,24 @@
 
 //#define NDEBUG
 void main(void) {
-    
     int xpos = 0,ypos = 32;
     int oldTime, newTime;
-    int i;
+    //int i;
     bool s = true;
     gfx_sprite_t * background = gfx_MallocSprite(160,120);
     /*gfx_TempSprite(square,51,51);
     memset(square->data,0x09,square->width * square->height);*/
     background = gfx_ScaleSprite(hexplore,background);
+    
     gfx_Begin();
     gfx_SetPalette(images_pal,sizeof_images_pal,0);
     gfx_SetTransparentColor(images_transparent_color_index);
     gfx_SetDrawBuffer();
-    /*gfx_SetTextTransparentColor(0x7F);
-    gfx_SetTextFGColor(0xFF);
-    gfx_SetTextBGColor(0x02);*/
+    
     set_alpha_color(gfx_palette[WHITE]);
     do {
         kb_Scan();
-        gfx_FillScreen(0xFF);
+        //gfx_FillScreen(0xFF);
         gfx_ScaledSprite_NoClip(background,0,0,2,2);
         if ((xpos+=10) <= 160) {
             gfx_TransparentSprite(circle,xpos,ypos);
@@ -57,7 +55,9 @@ void main(void) {
         }
         gfx_TransparentSprite(glass,xpos-41,ypos-11);
         gfx_BlitBuffer();
+        
         if (((xpos+=10) > 160)) break;
+        
      } while(!(kb_Data[6] & kb_Clear));
     if (kb_Data[6] & kb_Clear) goto end;
     
