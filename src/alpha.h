@@ -9,6 +9,9 @@
 #include <graphx.h>
 #ifndef __alpha_h__
 #define __alpha_h__
+void set_alpha_color_128(uint16_t color);
+void set_alpha_colors(uint16_t * colors,const uint8_t n_colors);
 void alpha_mask_sprite(gfx_sprite_t * sprite,int x,int y);
-void set_alpha_color(uint16_t color);
+void multi_alpha_mask_sprite(gfx_sprite_t * sprite,int x,int y,const uint8_t n_colors);
+//#define set_alpha_color(color) set_alpha_color_128(color)
 #endif
