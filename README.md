@@ -17,3 +17,9 @@ In 8bpp (**8** bits per pixel) mode, there are 256 (2 ^ **8**) colors you can us
 An expression that shows the number of *normal* colors you'd be able to use in a palette of size **full_size** that uses **a_colors** alpha colors would look like this:
 
 `floor(full_size / (a_colors+1))`
+
+## Current timings
+
+|    Size    |   Time   |
+-------------|------------
+|51x51 pixels|0.949 secs|
