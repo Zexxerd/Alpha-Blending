@@ -23,3 +23,8 @@ An expression that shows the number of *normal* colors you'd be able to use in a
 |    Size    |   Time   |
 -------------|------------
 |51x51 pixels|0.949 secs|
+
+## To do
+- Add transparency percentages
+- Port this to eZ80 assembly?
+- More stuff
